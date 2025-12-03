@@ -42,8 +42,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. DATA FUNCTIONS ---
-@st.cache_data
+# --- 4. DATA FUNCTIONS (Auto-Refresh) ---
+@st.cache_data(ttl="1h")
 def load_data():
     if not os.path.exists(HISTORY_FILE): return pd.DataFrame()
     try:
@@ -52,7 +52,7 @@ def load_data():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data
+@st.cache_data(ttl="1h")
 def load_benchmarks():
     if not os.path.exists(STATS_FILE): return {}
     try:
@@ -73,70 +73,46 @@ def load_benchmarks():
     except: return {}
 
 def calculate_savings(df, benchmarks):
-    # EXPANDED VOCABULARY
+    # RULES: "keyword": ("StatsCan Key", "Category")
     rules = {
-        # --- MEAT (Consolidated) ---
-        "ground beef": ("Ground beef, per kilogram 5", 2.20, "Meat 🥩"),
-        "hamburger": ("Ground beef, per kilogram 5", 2.20, "Meat 🥩"),
-        "stewing beef": ("Beef stewing cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "steak": ("Beef striploin cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "sirloin": ("Beef top sirloin cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "roast": ("Beef rib cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "pork loin": ("Pork loin cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "chops": ("Pork loin cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "ribs": ("Pork rib cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "pork shoulder": ("Pork shoulder cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "bacon": ("Bacon, 500 grams 6", 1.0, "Meat 🥩"),
-        "wieners": ("Wieners, 400 grams 6", 1.0, "Meat 🥩"),
-        "hot dog": ("Wieners, 400 grams 6", 1.0, "Meat 🥩"),
-        "pork": ("Pork loin cuts, per kilogram 5", 2.20, "Meat 🥩"),
-        "chicken breast": ("Chicken breasts, per kilogram 5", 2.20, "Meat 🥩"),
-        "chicken thigh": ("Chicken thigh, per kilogram 5", 2.20, "Meat 🥩"),
-        "drumstick": ("Chicken drumsticks, per kilogram 5", 2.20, "Meat 🥩"),
-        "whole chicken": ("Whole chicken, per kilogram 5", 2.20, "Meat 🥩"),
-        "turkey": ("Whole chicken, per kilogram 5", 2.20, "Meat 🥩"), 
+        # --- MEAT 🥩 ---
+        "ground beef": ("Ground beef, per kilogram 5", "Meat 🥩"),
+        "hamburger": ("Ground beef, per kilogram 5", "Meat 🥩"),
+        "stewing beef": ("Beef stewing cuts, per kilogram 5", "Meat 🥩"),
+        "steak": ("Beef striploin cuts, per kilogram 5", "Meat 🥩"),
+        "roast": ("Beef rib cuts, per kilogram 5", "Meat 🥩"), 
+        "pork loin": ("Pork loin cuts, per kilogram 5", "Meat 🥩"),
+        "chops": ("Pork loin cuts, per kilogram 5", "Meat 🥩"),
+        "ribs": ("Pork rib cuts, per kilogram 5", "Meat 🥩"),
+        "pork shoulder": ("Pork shoulder cuts, per kilogram 5", "Meat 🥩"),
+        "bacon": ("Bacon, 500 grams 6", "Meat 🥩"),
+        "ham": ("Pork loin cuts, per kilogram 5", "Meat 🥩"), # Ham Proxy
+        "chicken": ("Chicken breasts, per kilogram 5", "Meat 🥩"),
+        "turkey": ("Whole chicken, per kilogram 5", "Meat 🥩"),
         
-        # --- SEAFOOD ---
-        "salmon": ("Salmon, per kilogram 5", 2.20, "Seafood 🐟"),
+        # --- DAIRY 🧀 ---
+        "butter": ("Butter, 454 grams 5", "Dairy 🧀"),
+        "milk": ("Milk, 4 litres 5", "Dairy 🧀"),
+        "cheese": ("Block cheese, 500 grams 6", "Dairy 🧀"),
+        "yogurt": ("Yogurt, 500 grams 6", "Dairy 🧀"),
+        "margarine": ("Margarine, 907 grams 6", "Dairy 🧀"),
         
-        # --- DAIRY (Expanded) ---
-        "butter": ("Butter, 454 grams 5", 1.0, "Dairy 🧀"),
-        "milk": ("Milk, 4 litres 5", 1.0, "Dairy 🧀"),
-        "eggs": ("Eggs, 1 dozen 5", 1.0, "Dairy 🧀"),
-        "cheese": ("Block cheese, 500 grams 6", 1.0, "Dairy 🧀"),
-        "cheddar": ("Block cheese, 500 grams 6", 1.0, "Dairy 🧀"),
-        "mozarella": ("Block cheese, 500 grams 6", 1.0, "Dairy 🧀"),
-        "yogurt": ("Yogurt, 500 grams 6", 1.0, "Dairy 🧀"),
-        "cream": ("Cream, 1 litre 5", 1.0, "Dairy 🧀"),
-        "margarine": ("Margarine, 907 grams 6", 1.0, "Dairy 🧀"),
+        # --- PRODUCE 🥦 ---
+        "potatoes": ("Potatoes, 4.54 kilograms 5", "Produce 🥦"),
+        "carrots": ("Carrots, 1.36 kilograms 6", "Produce 🥦"),
+        "apples": ("Apples, per kilogram 5", "Produce 🥦"),
+        "mandarin": ("Oranges, per kilogram 5", "Produce 🥦"),
+        "oranges": ("Oranges, per kilogram 5", "Produce 🥦"),
+        "lettuce": ("Romaine lettuce, unit 5", "Produce 🥦"),
+        "squash": ("Carrots, 1.36 kilograms 6", "Produce 🥦"), # Proxy for 'Cheap Veg'
+        "sweet potato": ("Sweet potatoes, per kilogram 5", "Produce 🥦"),
         
-        # --- PRODUCE (Expanded) ---
-        "potatoes": ("Potatoes, 4.54 kilograms 5", 1.0, "Produce 🥦"),
-        "carrots": ("Carrots, 1.36 kilograms 6", 0.45, "Produce 🥦"),
-        "apples": ("Apples, per kilogram 5", 2.20, "Produce 🥦"),
-        "avocados": ("Avocado, unit 5", 1.0, "Produce 🥦"),
-        "grapes": ("Grapes, per kilogram 5", 2.20, "Produce 🥦"),
-        "bananas": ("Bananas, per kilogram 5", 2.20, "Produce 🥦"),
-        "pears": ("Pears, per kilogram 5", 2.20, "Produce 🥦"),
-        "tomatoes": ("Tomatoes, per kilogram 5", 2.20, "Produce 🥦"),
-        "onions": ("Onions, per kilogram 5", 2.20, "Produce 🥦"),
-        "oranges": ("Oranges, per kilogram 5", 2.20, "Produce 🥦"),
-        "lettuce": ("Romaine lettuce, unit 5", 1.0, "Produce 🥦"),
-        "romaine": ("Romaine lettuce, unit 5", 1.0, "Produce 🥦"),
-        "peppers": ("Peppers, per kilogram 5", 2.20, "Produce 🥦"),
-        "cucumber": ("Cucumber, unit 5", 1.0, "Produce 🥦"),
-        "mushrooms": ("Mushrooms, 227 grams 6", 1.0, "Produce 🥦"),
-        "strawberries": ("Strawberries, 454 grams 6", 1.0, "Produce 🥦"),
-        "celery": ("Celery, unit 5", 1.0, "Produce 🥦"),
-        "sweet potato": ("Sweet potatoes, per kilogram 5", 2.20, "Produce 🥦"),
-        "yams": ("Sweet potatoes, per kilogram 5", 2.20, "Produce 🥦"),
-        
-        # --- PANTRY ---
-        "peanut butter": ("Peanut butter, 1 kilogram 6", 1.0, "Pantry 🥫"),
-        "coffee": ("Roasted or ground coffee, 340 grams 6", 1.0, "Pantry 🥫"),
-        "pasta": ("Dry or fresh pasta, 500 grams 6", 1.0, "Pantry 🥫"),
-        "flour": ("Wheat flour, 2.5 kilograms 6", 1.0, "Pantry 🥫"),
-        "sugar": ("White sugar, 2 kilograms 6", 1.0, "Pantry 🥫"),
+        # --- PANTRY 🥫 ---
+        "pasta": ("Dry or fresh pasta, 500 grams 6", "Pantry 🥫"),
+        "flour": ("Wheat flour, 2.5 kilograms 6", "Pantry 🥫"),
+        "broth": ("Canned soup, 284 millilitres 6", "Pantry 🥫"), 
+        "coconut milk": ("Canned soup, 284 millilitres 6", "Pantry 🥫"), 
+        "salmon": ("Canned salmon, 213 grams 6", "Pantry 🥫"), 
     }
     
     results = []
@@ -144,49 +120,74 @@ def calculate_savings(df, benchmarks):
         item = str(row['Item']).lower()
         price = row['Price_Value']
         price_txt = str(row['Price_Text']).lower()
-        bench_val = None
-        category = "Other"
         
-        for k, (b_key, b_factor, b_cat) in rules.items():
+        # --- 1. EXCLUSION FILTER (The "No False Positives" Wall) ---
+        if "water" in item or "foil" in item or "pan" in item: 
+            continue # Removes "Coconut Water" and "Roasting Pans" from Roast
+        if "coffee" in item and "roast" in item:
+            continue # Removes "Roasted Coffee" from Meat
+
+        matched_rule = None
+        for k in rules:
             if k in item:
-                bench_val = benchmarks.get(b_key)
-                category = b_cat
+                # Special check for Canned vs Fresh Salmon
+                if k == "salmon" and "canned" not in item and "gold seal" not in item and price > 6:
+                     # Skip fresh salmon if we don't have a fresh benchmark, or let it fail savings check
+                     continue 
+                matched_rule = rules[k]
                 break
         
-        if bench_val and price > 0:
-            final_bench = bench_val
-            unit_label = ""
+        if matched_rule and price > 0:
+            b_key, category = matched_rule
+            bench_val = benchmarks.get(b_key, 0)
             
-            # --- SMART UNIT LOGIC ---
-            # 1. Weight-based items (Meat/Produce)
-            is_pound = "/lb" in price_txt or (category in ["Meat 🥩", "Produce 🥦"] and price < 15 and "ea" not in price_txt)
-            
-            if is_pound and "per kilogram" in str(b_key):
-                final_bench = bench_val / 2.2046
-                unit_label = "/lb"
-            
-            # 2. Specific Bag/Pack Fixes
-            elif "carrots" in item:
-                if "3lb" in price_txt: unit_label = "(3lb)"
-                elif "5lb" in price_txt: final_bench = (bench_val/1.36)*2.27; unit_label = "(5lb)"
-            elif "onions" in item:
-                if "3lb" in price_txt: final_bench = (bench_val)*1.36; unit_label = "(3lb)"
-            elif "potatoes" in item:
-                if "10lb" in price_txt: unit_label = "(10lb)"
-                elif "5lb" in price_txt: final_bench = bench_val/2; unit_label = "(5lb)"
-            elif "strawberries" in item:
-                unit_label = "(454g)" # Clamshell matches StatsCan
-            elif "mushrooms" in item:
-                unit_label = "(227g)" # Pack matches StatsCan
+            if bench_val > 0:
+                final_bench = bench_val
+                unit_label = ""
+                price_comparison = price
 
-            savings_pct = (final_bench - price) / final_bench
-            
-            if savings_pct > 0.01:
-                results.append({
-                    "Date": row['Date'], "Store": row['Store'], "Category": category,
-                    "Item": row['Item'], "Price": f"${price:.2f}{unit_label}",
-                    "Savings": savings_pct * 100, "Benchmark": final_bench, "Unit": unit_label
-                })
+                # --- 2. THE "100g" TRAP DETECTOR ---
+                if "100 g" in price_txt or "100g" in price_txt:
+                    # If price is per 100g, multiply by 10 to get per kg for comparison
+                    price_comparison = price * 10
+                    # Note: We keep 'price' as is for display, but use 'price_comparison' for math
+                
+                # --- 3. STANDARD UNIT DETECTION ---
+                # Check if price is likely Per Pound
+                is_pound = "/lb" in price_txt or (price < 15 and "ea" not in price_txt and category in ["Meat 🥩", "Produce 🥦"])
+                if "ribs" in item and price > 8: is_pound = False # Boxed Ribs exception
+
+                if is_pound and "per kilogram" in b_key:
+                    final_bench = bench_val / 2.2046
+                    unit_label = "/lb"
+                
+                # --- 4. SPECIFIC ITEM OVERRIDES ---
+                if "mandarin" in item: 
+                    # Compare Box Price to (Benchmark/kg * 1.8kg)
+                    # 4lb = ~1.81kg
+                    final_bench = (bench_val * 1.81)
+                    unit_label = "(4lb Box)"
+                elif "ribs" in item and "swiss chalet" in item:
+                    # 600g Box
+                    final_bench = (bench_val * 0.6)
+                    unit_label = "(600g)"
+                elif "bacon" in item:
+                    unit_label = "(500g)"
+                elif "squash" in item:
+                    # Squash is cheap, benchmark against carrots isn't perfect but works for sorting
+                    unit_label = "/lb"
+
+                # --- 5. CALCULATE SAVINGS ---
+                savings_pct = (final_bench - price_comparison) / final_bench
+                
+                # Only show if savings > 10% OR it's a known "Good Deal" item like Squash
+                if savings_pct > 0.10 or "squash" in item:
+                    results.append({
+                        "Date": row['Date'], "Store": row['Store'], "Category": category,
+                        "Item": row['Item'], "Price": f"${price:.2f}{unit_label}",
+                        "Savings": savings_pct * 100, "Benchmark": final_bench, "Unit": unit_label
+                    })
+                
     return pd.DataFrame(results)
 
 def render_card(row):
@@ -202,8 +203,12 @@ def render_card(row):
     </div>
     """, unsafe_allow_html=True)
 
-# --- 5. UI EXECUTION ---
+# --- 6. UI EXECUTION ---
 st.title("🛒 Seton Grocery Hub")
+
+if st.button("🔄 Refresh Data"):
+    st.cache_data.clear()
+    st.rerun()
 
 df_raw = load_data()
 benchmarks = load_benchmarks()
@@ -228,16 +233,25 @@ with tab1:
         if sel_cat != "All":
             df_deals = df_deals[df_deals['Category'] == sel_cat]
         
-        df_deals = df_deals.sort_values("Savings", ascending=False)
+        # --- IMPROVED SORTING ---
+        # 1. Store (A-Z)
+        # 2. Category (A-Z)
+        # 3. Savings (High to Low)
+        df_deals = df_deals.sort_values(by=['Store', 'Category', 'Savings'], ascending=[True, True, False])
         
-        # Limit to Top 20
-        df_display = df_deals.head(20)
-        
-        st.markdown(f"**Showing Top {len(df_display)} Deals**")
-        st.markdown("---")
-        
-        for _, row in df_display.iterrows():
-            render_card(row)
+        # Display Logic
+        if sel_cat == "All":
+            st.markdown("### 🏆 Top 5 Deals Per Store")
+            for store in df_deals['Store'].unique():
+                st.markdown(f"**{store}**")
+                # Show Top 5 items for this store
+                store_deals = df_deals[df_deals['Store'] == store].head(5)
+                for _, row in store_deals.iterrows():
+                    render_card(row)
+        else:
+            # Show all deals if specific category selected
+            for _, row in df_deals.iterrows():
+                render_card(row)
     else:
         st.info("No major deals found this week.")
 
