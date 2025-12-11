@@ -31,36 +31,50 @@ history_files = glob.glob("*history.csv")
 STATS_FILE = stats_files[0] if stats_files else "1810024501-eng.csv"
 HISTORY_FILE = history_files[0] if history_files else "seton_grocery_history.csv"
 
-# --- 4. CSS STYLING ---
+# --- 4. CSS STYLING (FIXED FOR DARK MODE) ---
 st.markdown("""
 <style>
+    /* Force text color to black inside the card to prevent "White on White" in Dark Mode */
     .deal-card { 
         background-color: white; 
+        color: #000000;  /* Forces dark text */
         padding: 15px; 
         border-radius: 10px; 
         box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
         margin-bottom: 10px; 
         border-left: 5px solid #4CAF50; 
     }
+    
     .score-card {
         background-color: #f8f9fa;
+        color: #000000; /* Forces dark text */
         padding: 20px;
         border-radius: 15px;
         border: 2px solid #e9ecef;
         margin-bottom: 20px;
     }
+
+    /* Explicitly black for the item title with !important to override system themes */
+    .deal-item { 
+        font-size: 1.1em; 
+        font-weight: 600; 
+        margin: 5px 0; 
+        color: #000000 !important; 
+    }
+
     .verdict-box {
         font-size: 1.5em; 
         font-weight: bold; 
         text-align: center; 
         padding: 10px; 
         border-radius: 8px; 
-        color: white;
+        color: white; /* Keep white text for the colored verdict box */
         margin-bottom: 15px;
     }
+    
     .deal-store { font-weight: bold; color: #555; font-size: 0.8em; text-transform: uppercase; }
     .deal-price { color: #d32f2f; font-weight: bold; font-size: 1.2em; }
-    .deal-item { font-size: 1.1em; font-weight: 600; margin: 5px 0; }
+    
     .savings-badge { 
         float: right; 
         background: #e8f5e9; 
@@ -70,17 +84,21 @@ st.markdown("""
         font-size: 0.8em; 
         font-weight: bold; 
     }
+    
     .source-tag {
         font-size: 0.7em;
         color: #888;
         font-style: italic;
     }
+    
     .stChatMessage {
         background-color: #f0f2f6;
+        color: #000000; /* Ensure chat text is readable */
         border-radius: 10px;
         padding: 10px;
         border: 1px solid #ddd;
     }
+    
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 </style>
