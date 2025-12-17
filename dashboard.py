@@ -9,7 +9,7 @@ from google import genai
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Seton Deals Beta", page_icon="🥦", layout="centered")
 
-# --- 2. AI SETUP (Fixed for .env) ---
+# --- 2. AI SETUP (Safe for Cloud & Local) ---
 load_dotenv() # Load the .env file
 GEMINI_AVAILABLE = False
 CLIENT = None
@@ -261,7 +261,7 @@ def calculate_savings(df_current, stats_benchmarks, local_benchmarks):
                     })
     return pd.DataFrame(results)
 
-# --- 8. SCORE CARD RENDERER (UPDATED FOR NEW SDK) ---
+# --- 8. SMART SCORE CARD RENDERER (NEW: With Trend Logic) ---
 def render_scorecard(item_row, df_full):
     st.markdown(f"### 🧐 Deal Analysis: {item_row['Item']}")
     
@@ -290,23 +290,86 @@ def render_scorecard(item_row, df_full):
     </div>
     """, unsafe_allow_html=True)
 
-    # 2. GET HISTORY DATA
-    keywords = item_row['Item'].split()[:2]
-    search_term = " ".join(keywords)
+    # 2. GET & CLEAN HISTORY DATA
+    search_term = item_row.get('Search_Term', item_row['Item'].split()[0])
     mask = df_full['Item'].str.contains(search_term, case=False, na=False)
-    df_hist = df_full[mask].sort_values("Date")
+    df_hist = df_full[mask].copy().sort_values("Date")
 
-    # 3. AI DEEP DIVE
+    # 3. SMART NORMALIZATION (Standardizes units for graph)
+    rules = get_rules()
+    rule_key = None
+    
+    # Find which rule applies to this item
+    for k in rules:
+        if k in item_row['Item'].lower():
+            rule_key = k
+            break
+            
+    smart_history = []
+    if not df_hist.empty and rule_key:
+        for _, h_row in df_hist.iterrows():
+            # Normalize every historical price to the same standard (e.g. /lb or /kg)
+            norm_p = normalize_price(
+                h_row['Price_Value'], 
+                str(h_row['Price_Text']).lower(), 
+                str(h_row['Item']).lower(), 
+                rule_key
+            )
+            
+            # Formatting for the Tooltip
+            tooltip_price = f"${norm_p:.2f}"
+            
+            # Scaling for display (match the benchmark unit logic)
+            display_price = norm_p
+            if "/lb" in item_row['Unit']: display_price = norm_p / 2.2046
+            elif "4lb" in item_row['Unit']: display_price = norm_p * 1.81
+            elif "600g" in item_row['Unit']: display_price = norm_p * 0.6
+            elif "/100g" in item_row['Unit']: display_price = norm_p / 10
+            
+            smart_history.append({
+                "Date": h_row['Date'],
+                "Store": h_row['Store'],
+                "Unit Price": display_price, 
+                "Item": h_row['Item']
+            })
+        df_smart = pd.DataFrame(smart_history)
+    else:
+        # Fallback if no rule matches
+        df_smart = df_hist.rename(columns={"Price_Value": "Unit Price"})
+
+    # 4. CHART WITH CONTEXT
+    if not df_smart.empty:
+        st.markdown(f"#### 📉 Price Trend ({item_row['Unit'] or 'per unit'})")
+        
+        # Base Scatter Plot
+        fig = px.scatter(df_smart, x="Date", y="Unit Price", color="Store", 
+                      hover_data=["Item"], title=None)
+        
+        # Add Trendline
+        fig.add_traces(px.line(df_smart, x="Date", y="Unit Price", color="Store").data)
+        
+        # Add BENCHMARK Line
+        fig.add_hline(y=item_row['Benchmark'], line_dash="dash", line_color="red", 
+                     annotation_text=f"Avg: ${item_row['Benchmark']:.2f}", 
+                     annotation_position="bottom right")
+
+        fig.update_layout(
+            height=350, 
+            margin=dict(l=20, r=20, t=20, b=20),
+            yaxis_title=f"Price {item_row['Unit']}",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # 5. AI DEEP DIVE
     st.markdown("### 🤖 AI Deep Dive")
     if GEMINI_AVAILABLE and CLIENT:
         with st.spinner("🧠 Analyzing price trends & value..."):
-            
-            # Prepare Data for AI
             hist_context = "No historical data."
-            if not df_hist.empty:
-                low = df_hist['Price_Value'].min()
-                high = df_hist['Price_Value'].max()
-                hist_context = f"History: Low ${low:.2f}, High ${high:.2f}."
+            if not df_smart.empty:
+                low = df_smart['Unit Price'].min()
+                high = df_smart['Unit Price'].max()
+                hist_context = f"History ({item_row['Unit']}): Low ${low:.2f}, High ${high:.2f}."
 
             prompt = f"""
             Analyze this grocery deal for a shopper in Calgary.
@@ -316,13 +379,12 @@ def render_scorecard(item_row, df_full):
             {hist_context}
             
             Provide:
-            1. 📉 **Trend Analysis:** Is this a good time to buy based on the history/benchmark?
+            1. 📉 **Trend Analysis:** Is this a good time to buy based on the history?
             2. 🍳 **Quick Idea:** One simple way to cook or use this.
             3. 💡 **Verdict:** Buy Now or Wait?
             """
             
             try:
-                # Use the CLIENT we initialized earlier
                 response = CLIENT.models.generate_content(
                     model='gemini-2.0-flash', 
                     contents=prompt
@@ -332,13 +394,6 @@ def render_scorecard(item_row, df_full):
                 st.error(f"AI Error: {e}")
     else:
         st.warning("AI Key missing or invalid.")
-
-    # 4. CHART
-    if not df_hist.empty:
-        st.markdown("#### 📅 6-Month Price Trend")
-        fig = px.line(df_hist, x="Date", y="Price_Value", color="Store", markers=True)
-        fig.update_layout(height=300, margin=dict(l=20, r=20, t=20, b=20))
-        st.plotly_chart(fig, use_container_width=True)
 
     if st.button("⬅️ Back to Deals List"):
         st.session_state.selected_item = None
