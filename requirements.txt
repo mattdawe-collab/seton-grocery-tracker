@@ -1,7 +1,5 @@
 streamlit
 pandas
 plotly
-google-genai
-pydantic 
-requests 
 python-dotenv
+google-genai>=1.51.0
