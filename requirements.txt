@@ -2,4 +2,4 @@ streamlit
 pandas
 plotly
 python-dotenv
-google-genai>=1.51.0
+google-generativeai
